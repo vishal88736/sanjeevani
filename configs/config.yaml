@@ -1,0 +1,44 @@
+# Sanjeevani ASR - Master Configuration
+# Compose with Hydra: python train.py model=indic_conformer dataset=indicvoices training=default
+
+defaults:
+  - model: indic_conformer
+  - dataset: indicvoices
+  - training: default
+  - _self_
+
+project:
+  name: sanjeevani-asr
+  seed: 42
+  output_dir: ./outputs
+  checkpoint_dir: ./checkpoints
+  log_dir: ./logs
+
+# Languages to load from IndicVoices. Must match language codes supported
+# by the dataset config below. Empty list => all configured languages.
+languages:
+  - hi   # Hindi
+  - bn   # Bengali
+  - ta   # Tamil
+  - te   # Telugu
+  - mr   # Marathi
+
+hardware:
+  device: cuda          # cuda | cpu | mps
+  num_workers: 8
+  pin_memory: true
+  precision: bf16        # fp32 | fp16 | bf16
+  distributed: false
+  num_gpus: 1
+
+logging:
+  level: INFO
+  use_tensorboard: true
+  log_every_n_steps: 50
+  eval_every_n_steps: 500
+
+api:
+  host: 0.0.0.0
+  port: 8000
+  max_audio_duration_sec: 120
+  default_language: hi

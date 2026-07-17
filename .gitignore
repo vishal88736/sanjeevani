@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+
+# Data & checkpoints (large binary artifacts; fetched/generated, not versioned)
+data/
+checkpoints/*
+!checkpoints/.gitkeep
+outputs/
+logs/
+
+# Hydra run artifacts
+.hydra/
+multirun/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

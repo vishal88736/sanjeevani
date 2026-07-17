@@ -1,0 +1,31 @@
+# Optional fallback model - only used if indic_conformer inference fails
+# or is explicitly requested via model=whisper
+name: whisper
+type: hf_whisper   # dispatch key used by models/registry.py
+
+hf_repo_id: openai/whisper-large-v3
+local_path: ./checkpoints/whisper/whisper-large-v3
+
+sample_rate: 16000
+supported_languages:
+  - hi
+  - bn
+  - ta
+  - te
+  - mr
+  - gu
+  - kn
+  - ml
+  - pa
+  - or
+  - as
+  - ur
+  - en
+
+decoding:
+  strategy: beam
+  beam_size: 5
+  temperature: 0.0
+
+freeze_encoder: false
+dropout: 0.0
