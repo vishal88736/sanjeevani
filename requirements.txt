@@ -1,0 +1,30 @@
+# Web server
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+python-multipart>=0.0.9
+pydantic>=2.7.0
+
+# ASR (AI4Bharat IndicConformer) + audio I/O
+torch>=2.2
+torchaudio>=2.2
+transformers>=4.40.0
+
+# Translation (AI4Bharat IndicTrans2), both directions
+IndicTransToolkit>=1.0.3
+sentencepiece>=0.2.0
+
+# Text-to-speech (AI4Bharat Indic Parler-TTS)
+parler-tts @ git+https://github.com/huggingface/parler-tts.git
+soundfile>=0.12.1
+
+# LLM answering: Gemma 4 via Ollama Cloud
+ollama>=0.4.0
+
+# WHO fact-sheet grounding
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+
+# Env var loading
+python-dotenv>=1.0.1
+
+torchcodec

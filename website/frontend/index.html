@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sanjeevani — Speak in your language. Understand your health.</title>
+<meta name="description" content="Sanjeevani listens in your language and helps you understand your health, in plain words." />
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;700;900&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans:wght@400;600&family=Noto+Sans+Devanagari:wght@400;600&family=Noto+Sans+Bengali:wght@400;600&family=Noto+Sans+Tamil:wght@400;600&family=Noto+Sans+Telugu:wght@400;600&family=Noto+Sans+Gujarati:wght@400;600&family=Noto+Sans+Kannada:wght@400;600&family=Noto+Sans+Malayalam:wght@400;600&family=Noto+Sans+Gurmukhi:wght@400;600&family=Noto+Sans+Oriya:wght@400;600&family=Noto+Nastaliq+Urdu:wght@400;600&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="/assets/style.css" />
+</head>
+<body>
+
+<div class="pulse-rail" aria-hidden="true">
+  <svg viewBox="0 0 1200 40" preserveAspectRatio="none" class="pulse-svg">
+    <path id="pulse-path" d="M0,20 L1200,20" />
+  </svg>
+</div>
+
+<header class="site-header">
+  <div class="wrap header-row">
+    <div class="wordmark">
+      <span class="wordmark-mark">स</span>
+      <span class="wordmark-text">Sanjeevani</span>
+    </div>
+    <nav class="header-nav">
+      <a href="#how-it-works">How it works</a>
+      <a href="#about">About this build</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+
+  <!-- ============ HERO / INTAKE SLIP ============ -->
+  <section class="intake-section wrap">
+    <div class="intake-intro">
+      <p class="eyebrow">Health information, in your words</p>
+      <h1>बोलिए. Speak, or type.<br>We'll help you understand it.</h1>
+      <p class="intake-sub">
+        Describe how you're feeling in any Indian language — by voice or by typing.
+        Sanjeevani transcribes it, translates it to English, and gives you a plain-language
+        explanation. It never replaces a doctor.
+      </p>
+    </div>
+
+    <div class="intake-slip" id="intake-slip">
+      <div class="slip-head">
+        <span class="slip-label">Patient intake</span>
+        <span class="slip-id" id="slip-timestamp">— · —</span>
+      </div>
+
+      <div class="mode-toggle" role="tablist" aria-label="Input mode">
+        <button class="mode-btn is-active" id="mode-speak" role="tab" aria-selected="true">Speak</button>
+        <button class="mode-btn" id="mode-type" role="tab" aria-selected="false">Type</button>
+      </div>
+
+      <div class="lang-row">
+        <label for="lang-select">Language</label>
+        <select id="lang-select">
+          <option value="auto">Auto-detect</option>
+        </select>
+      </div>
+
+      <!-- Speak panel -->
+      <div class="input-panel" id="panel-speak">
+        <button class="record-btn" id="record-btn" aria-pressed="false">
+          <span class="record-dot"></span>
+          <span class="record-label" id="record-label">Tap to speak</span>
+        </button>
+        <div class="record-waveform" id="record-waveform" aria-hidden="true">
+          <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+        </div>
+        <audio id="audio-preview" controls class="audio-preview hidden"></audio>
+      </div>
+
+      <!-- Type panel -->
+      <div class="input-panel hidden" id="panel-type">
+        <textarea id="text-input" placeholder="मुझे दो दिन से बुखार है… / Type how you're feeling…" rows="4"></textarea>
+      </div>
+
+      <button class="submit-btn" id="submit-btn" disabled>Ask Sanjeevani</button>
+      <p class="slip-note">This tool gives general information only. In an emergency, call <strong>108</strong>.</p>
+      <p class="memory-note hidden" id="memory-note">Continuing your conversation — Sanjeevani remembers what you already asked.</p>
+    </div>
+  </section>
+
+  <!-- ============ RESULTS ============ -->
+  <section class="results-section wrap hidden" id="results-section">
+
+    <div class="emergency-banner hidden" id="emergency-banner">
+      <strong>⚠ This may be urgent.</strong>
+      <span id="emergency-text">Call 108 or go to the nearest hospital now.</span>
+    </div>
+
+    <div class="ticket" id="ticket-heard">
+      <div class="ticket-tag">What we heard</div>
+      <p class="ticket-native" id="result-transcript" lang=""></p>
+      <div class="ticket-meta">
+        <span class="lang-chip" id="result-lang-chip">—</span>
+      </div>
+    </div>
+
+    <div class="ticket ticket-translated">
+      <div class="ticket-tag">Translated to English</div>
+      <p class="ticket-english" id="result-english">—</p>
+    </div>
+
+    <div class="ticket triage-ticket hidden" id="triage-ticket">
+      <div class="ticket-tag">Sanjeevani's assessment</div>
+      <div class="triage-row">
+        <span class="triage-badge" id="triage-badge">—</span>
+        <span class="confidence-note" id="confidence-note"></span>
+      </div>
+      <div class="assessment-row hidden" id="conditions-row">
+        <span class="row-label">Possible:</span>
+        <span id="conditions-list"></span>
+      </div>
+      <div class="assessment-row hidden" id="redflags-row">
+        <span class="row-label">Flagged:</span>
+        <span id="redflags-list"></span>
+      </div>
+      <p class="function-note hidden" id="function-note"></p>
+    </div>
+
+    <div class="note-card">
+      <div class="stamp" id="result-stamp">DRAFT<br><span>pending clinical source</span></div>
+      <div class="ticket-tag">Sanjeevani's response</div>
+      <p class="note-answer" id="result-answer">—</p>
+
+      <div class="note-sources hidden" id="note-sources">
+        <span class="sources-label">Source:</span>
+        <span id="sources-list"></span>
+      </div>
+
+      <div class="note-actions">
+        <button class="listen-btn" id="listen-btn">🔊 Listen to the answer</button>
+        <audio id="answer-audio" controls class="audio-preview hidden"></audio>
+      </div>
+
+      <p class="note-disclaimer">
+        General information only — not a diagnosis. Please confirm with a doctor, nurse,
+        or your nearest health worker. In an emergency, call <strong>108</strong>.
+      </p>
+    </div>
+
+    <div class="results-actions">
+      <button class="ask-again-btn" id="ask-again-btn">Continue this conversation</button>
+      <button class="new-convo-btn" id="new-convo-btn">Start a new conversation</button>
+    </div>
+  </section>
+
+  <div class="status-banner hidden" id="status-banner">
+    <div class="status-dot"></div>
+    <span id="status-text">Listening…</span>
+  </div>
+
+  <!-- ============ HOW IT WORKS ============ -->
+  <section class="how-section" id="how-it-works">
+    <div class="wrap">
+      <h2>How Sanjeevani gets from your voice to an answer</h2>
+      <ol class="how-steps">
+        <li>
+          <span class="step-index">1</span>
+          <h3>Listen</h3>
+          <p>Your speech is transcribed in its original language using AI4Bharat's IndicConformer model, trained on the IndicVoices corpus.</p>
+        </li>
+        <li>
+          <span class="step-index">2</span>
+          <h3>Translate</h3>
+          <p>The transcript is translated into English with AI4Bharat's IndicTrans2, so nothing is lost in how the question was asked.</p>
+        </li>
+        <li>
+          <span class="step-index">3</span>
+          <h3>Answer</h3>
+          <p>Google's Gemma 4 (served via Ollama) drafts a cautious, plain-language response — grounded in a WHO fact sheet when your question matches one, and remembering earlier turns in the same conversation.</p>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ============ ABOUT / HONESTY SECTION ============ -->
+  <section class="about-section" id="about">
+    <div class="wrap about-grid">
+      <div>
+        <h2>What this build is — and isn't, yet</h2>
+        <p>
+          Sanjeevani is a prototype. The listening and translation are powered by real,
+          pretrained AI4Bharat models. When your question matches one of a small, curated
+          set of WHO fact sheets, the answer is grounded in a live excerpt from who.int and
+          says so, with a source link. Outside that set, the answer is drafted by Gemma 4
+          with extra caution and no specific source — that's why those answers keep the
+          "draft" stamp. Growing the WHO topic coverage (or connecting a different verified
+          clinical source) is the natural next step, not a hidden one.
+        </p>
+      </div>
+      <div class="about-credits">
+        <p class="credits-label">Built on</p>
+        <ul>
+          <li>AI4Bharat IndicConformer — speech recognition</li>
+          <li>AI4Bharat IndicTrans2 — translation, both directions</li>
+          <li>AI4Bharat Indic Parler-TTS — spoken answers</li>
+          <li>Google Gemma 4, served via Ollama Cloud — answer drafting</li>
+          <li>World Health Organization fact sheets — grounding, where matched</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p>Sanjeevani is a health-information prototype. It does not diagnose and is not a substitute for professional medical care. In an emergency, call <strong>108</strong>.</p>
+  </div>
+</footer>
+
+<script src="/assets/app.js"></script>
+</body>
+</html>
