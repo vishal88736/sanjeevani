@@ -2,9 +2,9 @@
 
 Speak or type a health question in any major Indian language. Sanjeevani transcribes it,
 translates it to English, has **Gemma 4 reason through it in two stages** — extracting
-symptoms and planning what to retrieve, then weighing that against real WHO reference
-material to produce a triage judgment — remembers the conversation, and can read the
-answer back to you in your own language.
+symptoms and planning what to retrieve, then weighing that against real medical reference
+material (WHO, NIH, MedQuAD) to produce a triage judgment — remembers the conversation, and can read the
+answer back to you in your own language. It also features a persona toggle for ASHA workers.
 
 ```
 sanjeevani/
@@ -51,7 +51,9 @@ knowledge_base.match_topics()      ◄── fuzzy-matches topics against a cura
 ┌─────────────────────────────────┐
 │ GEMMA 4 — Stage 2                │
 │ clinical_reasoning()              │
-│ weighs symptoms + WHO excerpts,   │
+│ weighs symptoms + multi-source    │
+│ excerpts, adapts to user persona  │
+│ (Patient vs. ASHA worker)         │
 │ produces triage judgment,         │
 │ possible conditions, red flags,   │
 │ a plain-language answer, and a    │
@@ -167,20 +169,22 @@ model/
     │                            structured outputs; ReasoningParseError is raised
     │                            (and caught in pipeline.py) when Gemma's JSON can't
     │                            be salvaged even after a retry.
-    ├── knowledge_base.py        WHO grounding. WHO_FACT_SHEETS is the curated table
-    │                            of topic -> (keywords, title, who.int URL) — this is
-    │                            the one place to edit to add more WHO coverage.
+    ├── knowledge_base.py        Multi-source grounding. Includes curated dictionaries
+    │                            for WHO Fact Sheets, NIH MedlinePlus Topics, and
+    │                            First Aid Guides. Also includes fallback logic that
+    │                            queries an offline MedQuAD FTS5 SQLite database 
+    │                            built from 47,457 genuine NIH Q&A pairs.
     │                            match_topics() fuzzy-matches Gemma's suggested topic
-    │                            names against that table (used by the main pipeline);
-    │                            retrieve_context() is the older single-keyword-query
-    │                            version, kept as part of the fallback path.
+    │                            names against curated sources; retrieve_context() falls
+    │                            back to the offline database if curated sources miss.
+    ├── build_medquad_db.py      Utility script to download the HuggingFace MedQuAD
+    │                            dataset and build the local `medquad.sqlite` database.
     ├── functions.py              The "function calling" stage. dispatch() maps
     │                            TriageResult.next_action to a real action:
-    │                            emergency_escalation() (just a strong structured
-    │                            signal — no external call) or find_nearest_hospital()
-    │                            (an explicit PLACEHOLDER — no facility directory or
-    │                            maps API is wired up yet; it returns an honest note
-    │                            saying so rather than pretending to find something).
+    │                            emergency_escalation() (strong structured signal) or
+    │                            find_nearest_hospital() (Queries the OpenStreetMap
+    │                            Overpass API using the user's GPS coordinates to find 
+    │                            real hospitals and generates Google Maps links).
     ├── memory.py                 ConversationStore — process-local, in-memory,
     │                            per-session conversation history (capped at
     │                            MAX_HISTORY_TURNS turns), fed into both Gemma stages
@@ -200,15 +204,14 @@ model/
 - **Speech recognition, both translation directions, and text-to-speech are real,
   pretrained AI4Bharat models.** Nothing there is mocked.
 - **Gemma 4's reasoning is real** — both stages are genuine model calls that shape what
-  gets retrieved and how the answer is triaged, not just a phrasing pass over a fixed
-  template.
-- **WHO grounding is real but narrow**: a curated table of ~18 topics, fuzzy-matched
-  against whatever Gemma's extraction stage suggests, with a live fetch of the actual
-  who.int page. There's no general WHO search API to fall back on — growing coverage
-  means adding rows to `WHO_FACT_SHEETS`.
-- **The hospital-finder function is an explicit placeholder** — see `functions.py`. It's
-  wired into the reasoning loop (Gemma can trigger it) but returns an honest "not
-  connected yet" note rather than a fake result.
+  gets retrieved and how the answer is triaged, adapting its clinical tone based on whether
+  the user is a patient or an ASHA worker.
+- **Multi-Source Grounding is real**: The knowledge base dynamically fetches live excerpts
+  from the WHO and NIH MedlinePlus, provides hardcoded immediate First Aid steps, and falls
+  back to querying an offline SQLite database containing 47,457 genuine NIH Q&A pairs (MedQuAD).
+- **The hospital-finder function is real** — see `functions.py`. It requests the user's GPS
+  coordinates, executes a real-time query against the free OpenStreetMap Overpass API for nearby
+  amenities, and generates real Google Maps routing links. No API key required.
 - **Conversation memory is real but process-local** (see `memory.py` above).
 - **Audio language auto-detection is still a documented weak point** — see below.
 
@@ -219,6 +222,13 @@ cd sanjeevani
 python3.11 -m venv .venv && source .venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
+pip install datasets pyarrow pandas  # Required to build the offline medical DB
+```
+
+**Build the Offline Medical Database:**
+Before running the server, build the local MedQuAD database (requires ~40MB of space):
+```bash
+python model/llm/build_medquad_db.py
 ```
 
 **System dependency:** browser-recorded audio typically arrives as WebM/Opus.
@@ -276,10 +286,10 @@ at AI4Bharat's dedicated **IndicLID** model as a drop-in replacement for the heu
 
 ## Extending this
 
-- **Add more WHO topics:** add rows to `WHO_FACT_SHEETS` in `model/llm/knowledge_base.py`.
+- **Add more curated topics:** add rows to `WHO_FACT_SHEETS` or `MEDLINEPLUS_TOPICS` in `model/llm/knowledge_base.py`.
 - **Swap the grounding source entirely:** `match_topics()` / `retrieve_context()` in the
   same file are the functions to replace.
-- **Connect a real hospital directory:** replace the body of `find_nearest_hospital()` in
+- **Connect a different hospital directory:** replace the OpenStreetMap logic in `find_nearest_hospital()` in
   `model/llm/functions.py`.
 - **Add another function Gemma can call:** write the function in `functions.py`, add it
   to `dispatch()`, and mention the new `next_action` value in `reasoning.py`'s

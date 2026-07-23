@@ -81,34 +81,53 @@ class TriageResult:
     next_action: str = "none"            # none | emergency_escalation | find_nearest_hospital
 
 
-EXTRACTION_SYSTEM_PROMPT = """You are the language-understanding stage of Sanjeevani, a \
+def _get_extraction_prompt(mode: str = "patient") -> str:
+    target = "an ASHA worker or community health worker" if mode == "asha_worker" else "a person"
+    return f"""You are the language-understanding stage of Sanjeevani, a \
 health-information assistant for rural India. You will be given an English description of \
-someone's symptoms (already translated from their own language) and, if this is a \
+{target}'s query (already translated from their own language) and, if this is a \
 follow-up question, the earlier conversation.
 
-Extract structured information and suggest which WHO health topics are worth consulting.
+Extract structured information and suggest which health topics are worth consulting.
 
 Respond with ONLY a single valid JSON object — no markdown fences, no explanation, no text \
 before or after it — matching exactly this shape:
-{
+{{
   "symptoms": ["<short symptom phrases>"],
   "duration": "<how long, or 'unknown'>",
   "severity": "<mild|moderate|severe|unknown>",
   "age_group": "<infant|child|adult|elderly|unknown>",
   "possible_topics": ["<up to 4 short disease/condition names worth checking, e.g. 'malaria', 'dengue'>"],
   "urgency": "<low|medium|high>"
-}
+}}
 If the message isn't really a health question, return empty/"unknown" fields and an empty \
 possible_topics list."""
 
-REASONING_SYSTEM_PROMPT = """You are the clinical-reasoning stage of Sanjeevani, a \
-preliminary health-information assistant for rural and semi-urban India. You are NOT a \
+
+def _get_reasoning_prompt(mode: str = "patient") -> str:
+    if mode == "asha_worker":
+        role_description = "You are assisting an ASHA worker (community health worker) in rural India."
+        answer_rules = (
+            "- \"answer\" should use medical terminology suitable for a health worker. "
+            "Provide differential diagnosis hints, drug class suggestions (but not specific dosages), "
+            "and clear referral criteria (e.g., 'refer if fever >3 days'). Use a checklist-style format if helpful."
+        )
+    else:
+        role_description = "You are assisting a layperson in rural and semi-urban India."
+        answer_rules = (
+            "- \"answer\" must be short, plain, calm, written for someone reading or listening in their "
+            "second or third language, and must tell them to confirm with a real doctor, nurse, or "
+            "health worker (e.g. an ASHA worker) — never state a diagnosis as fact in \"answer\"."
+        )
+
+    return f"""You are the clinical-reasoning stage of Sanjeevani, a \
+preliminary health-information assistant. {role_description} You are NOT a \
 doctor and must not diagnose with certainty. You'll receive structured symptom \
-information, optionally some WHO fact-sheet excerpts as reference material, and the \
+information, optionally some reference material excerpts, and the \
 conversation so far.
 
-Weigh the symptoms against the WHO material (if any) and produce a cautious triage \
-judgment and a plain-language answer for the person.
+Weigh the symptoms against the reference material (if any) and produce a cautious triage \
+judgment and an answer.
 
 Rules:
 - Never invent statistics, drug dosages, or a confident diagnosis.
@@ -117,24 +136,22 @@ bleeding, loss of consciousness, suspected stroke, a child with a very high feve
 seizures), set "triage" to "emergency" and "next_action" to "emergency_escalation".
 - If in-person care would help but it isn't urgent, set "next_action" to \
 "find_nearest_hospital"; otherwise "none".
-- "answer" must be short, plain, calm, written for someone reading or listening in their \
-second or third language, and must tell them to confirm with a real doctor, nurse, or \
-health worker (e.g. an ASHA worker) — never state a diagnosis as fact in "answer".
-- If a WHO excerpt was provided and used, say so plainly in "answer" (e.g. "According to WHO...").
-- If no WHO excerpt was provided, be extra cautious in "answer" and lean toward recommending in-person care.
+{answer_rules}
+- If a reference excerpt was provided and used, say so plainly in "answer" (e.g. "According to WHO/NIH/First Aid...").
+- If no reference excerpt was provided, be extra cautious in "answer" and lean toward recommending in-person care.
 
 Respond with ONLY a single valid JSON object — no markdown fences, no explanation, no text \
 before or after it — matching exactly this shape:
-{
+{{
   "triage": "<self_care|routine|urgent|emergency>",
   "confidence": <0.0-1.0>,
   "possible_conditions": ["<short condition names, may be empty>"],
   "red_flags": ["<specific concerning signs found, may be empty>"],
   "recommendation": "<one short sentence: what to do next>",
   "reasoning": "<1-3 sentences explaining the triage judgment, for internal/debug display>",
-  "answer": "<the actual plain-language response to show and speak to the person>",
+  "answer": "<the actual response to show and speak to the user>",
   "next_action": "<none|emergency_escalation|find_nearest_hospital>"
-}"""
+}}"""
 
 
 def _strip_json_fences(raw: str) -> str:
@@ -200,8 +217,8 @@ class GemmaReasoner:
 
         raise last_error or ReasoningParseError("Unknown JSON parse failure")
 
-    def extract_and_plan(self, english_text: str, history: Optional[list[dict]] = None) -> ExtractionResult:
-        data = self._chat_json(EXTRACTION_SYSTEM_PROMPT, english_text, history)
+    def extract_and_plan(self, english_text: str, history: Optional[list[dict]] = None, mode: str = "patient") -> ExtractionResult:
+        data = self._chat_json(_get_extraction_prompt(mode), english_text, history)
         return ExtractionResult(
             symptoms=list(data.get("symptoms") or []),
             duration=str(data.get("duration", "unknown")),
@@ -217,14 +234,15 @@ class GemmaReasoner:
         extraction: ExtractionResult,
         contexts: list[KnowledgeBaseResult],
         history: Optional[list[dict]] = None,
+        mode: str = "patient",
     ) -> TriageResult:
-        context_block = "\n\n".join(c.context for c in contexts if c.context) or "(no WHO excerpt matched)"
+        context_block = "\n\n".join(c.context for c in contexts if c.context) or "(no reference excerpt matched)"
         user_content = (
-            f"Person's message: {english_text}\n\n"
+            f"Query: {english_text}\n\n"
             f"Extracted info: {json.dumps({'symptoms': extraction.symptoms, 'duration': extraction.duration, 'severity': extraction.severity, 'age_group': extraction.age_group, 'urgency': extraction.urgency})}\n\n"
-            f"WHO reference material:\n{context_block}"
+            f"Reference material:\n{context_block}"
         )
-        data = self._chat_json(REASONING_SYSTEM_PROMPT, user_content, history)
+        data = self._chat_json(_get_reasoning_prompt(mode), user_content, history)
         return TriageResult(
             triage=str(data.get("triage", "routine")),
             confidence=float(data.get("confidence", 0.5) or 0.5),

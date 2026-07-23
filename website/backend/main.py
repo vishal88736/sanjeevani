@@ -141,7 +141,7 @@ def ask_text(payload: TextAskRequest) -> AskResponse:
         payload.session_id or "new", payload.language, len(payload.text),
     )
     try:
-        result = pipeline.process_text(payload.text, language=payload.language, session_id=payload.session_id)
+        result = pipeline.process_text(payload.text, language=payload.language, session_id=payload.session_id, mode=payload.mode, lat=payload.lat, lng=payload.lng)
     except ValueError as exc:
         logger.warning("ask/text rejected: %s", exc)
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -160,6 +160,9 @@ async def ask_audio(
     audio: UploadFile = File(...),
     language: str = Form(default="auto"),
     session_id: str | None = Form(default=None),
+    mode: str = Form(default="patient"),
+    lat: float | None = Form(default=None),
+    lng: float | None = Form(default=None),
 ) -> AskResponse:
     pipeline = _get_pipeline()
 
@@ -181,7 +184,7 @@ async def ask_audio(
         session_id or "new", language, len(audio_bytes), ext,
     )
     try:
-        result = pipeline.process_audio(audio_bytes, language=language, session_id=session_id)
+        result = pipeline.process_audio(audio_bytes, language=language, session_id=session_id, mode=mode, lat=lat, lng=lng)
     except ValueError as exc:
         logger.warning("ask/audio rejected: %s", exc)
         raise HTTPException(status_code=400, detail=str(exc)) from exc

@@ -15,6 +15,11 @@ class TextAskRequest(BaseModel):
     session_id: Optional[str] = Field(
         default=None, description="Omit on the first message; reuse the returned id to continue the conversation"
     )
+    mode: Optional[str] = Field(
+        default="patient", description="Persona mode: 'patient' or 'asha_worker'"
+    )
+    lat: Optional[float] = None
+    lng: Optional[float] = None
 
 
 class AskResponse(BaseModel):

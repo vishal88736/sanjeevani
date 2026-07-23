@@ -107,7 +107,7 @@ class SanjeevaniPipeline:
         self.memory = ConversationStore()
 
     def process_audio(
-        self, audio_bytes: bytes, language: Optional[str] = None, session_id: Optional[str] = None
+        self, audio_bytes: bytes, language: Optional[str] = None, session_id: Optional[str] = None, mode: str = "patient", lat: Optional[float] = None, lng: Optional[float] = None
     ) -> PipelineResult:
         logger.info(
             "ASR stage starting  session=%s language=%s audio_bytes=%d",
@@ -126,10 +126,10 @@ class SanjeevaniPipeline:
             "ASR stage complete  session=%s language=%s chars=%d",
             session_id or "new", asr_result.language, len(asr_result.text),
         )
-        return self._finish(asr_result.text, asr_result.language, session_id)
+        return self._finish(asr_result.text, asr_result.language, session_id, mode, lat, lng)
 
     def process_text(
-        self, text: str, language: Optional[str] = None, session_id: Optional[str] = None
+        self, text: str, language: Optional[str] = None, session_id: Optional[str] = None, mode: str = "patient", lat: Optional[float] = None, lng: Optional[float] = None
     ) -> PipelineResult:
         text = text.strip()
         if not text:
@@ -140,9 +140,9 @@ class SanjeevaniPipeline:
             "Text input received  session=%s language=%s chars=%d",
             session_id or "new", lang_code, len(text),
         )
-        return self._finish(text, lang_code, session_id)
+        return self._finish(text, lang_code, session_id, mode, lat, lng)
 
-    def _finish(self, transcript: str, lang_code: str, session_id: Optional[str]) -> PipelineResult:
+    def _finish(self, transcript: str, lang_code: str, session_id: Optional[str], mode: str, lat: Optional[float] = None, lng: Optional[float] = None) -> PipelineResult:
         session_id = session_id or self.memory.new_session_id()
         lang_info = LANGUAGE_BY_CODE.get(lang_code, LANGUAGE_BY_CODE[DEFAULT_LANGUAGE])
 
@@ -158,13 +158,14 @@ class SanjeevaniPipeline:
         logger.info("Translated to English  session=%s chars=%d", session_id, len(english_text))
 
         history = self.memory.get_history(session_id)
-        triage, contexts, used_fallback = self._reason_with_fallback(session_id, english_text, history)
+        triage, contexts, used_fallback = self._reason_with_fallback(session_id, english_text, history, mode)
 
         self.memory.append_turn(session_id, english_text, triage.answer)
         logger.info("Session memory updated  session=%s turns_stored=%d", session_id, len(self.memory.get_history(session_id)) // 2)
 
-        function_result: Optional[FunctionCallResult] = dispatch_function(triage.next_action)
-        if function_result:
+        function_result: Optional[FunctionCallResult] = None
+        if triage.next_action:
+            function_result = dispatch_function(triage.next_action, lat=lat, lng=lng)
             logger.info(
                 "Function dispatched  session=%s action=%s", session_id, function_result.action,
             )
@@ -189,7 +190,7 @@ class SanjeevaniPipeline:
         )
 
     def _reason_with_fallback(
-        self, session_id: str, english_text: str, history: list[dict]
+        self, session_id: str, english_text: str, history: list[dict], mode: str
     ) -> tuple[TriageResult, list[KnowledgeBaseResult], bool]:
         """Runs the full extract -> retrieve -> reason pipeline. On any
         failure (Gemma JSON unparseable, retrieval planning stage down,
@@ -197,7 +198,7 @@ class SanjeevaniPipeline:
         person still gets an answer instead of an error."""
         try:
             logger.info("Gemma stage 1 (extract_and_plan) starting  session=%s", session_id)
-            extraction: ExtractionResult = self.reasoner.extract_and_plan(english_text, history)
+            extraction: ExtractionResult = self.reasoner.extract_and_plan(english_text, history, mode)
             logger.info(
                 "Gemma stage 1 complete  session=%s urgency=%s topics=%s",
                 session_id, extraction.urgency, extraction.possible_topics,
@@ -210,7 +211,7 @@ class SanjeevaniPipeline:
             )
 
             logger.info("Gemma stage 2 (clinical_reasoning) starting  session=%s", session_id)
-            triage = self.reasoner.clinical_reasoning(english_text, extraction, contexts, history)
+            triage = self.reasoner.clinical_reasoning(english_text, extraction, contexts, history, mode)
             if not triage.answer:
                 raise ReasoningParseError("Gemma returned an empty answer field")
             logger.info(

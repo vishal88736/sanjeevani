@@ -10,3 +10,4 @@ venv/
 .vscode/
 logs/*.log*
 logs
+*.sqlite

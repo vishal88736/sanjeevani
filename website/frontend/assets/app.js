@@ -8,6 +8,7 @@ const API_BASE = "http://127.0.0.1:8000";
     panelSpeak: document.getElementById("panel-speak"),
     panelType: document.getElementById("panel-type"),
     langSelect: document.getElementById("lang-select"),
+    personaSelect: document.getElementById("persona-select"),
     recordBtn: document.getElementById("record-btn"),
     recordLabel: document.getElementById("record-label"),
     recordWaveform: document.getElementById("record-waveform"),
@@ -51,6 +52,8 @@ const API_BASE = "http://127.0.0.1:8000";
   let languages = [];
   let sessionId = null;          // set once the first response comes back
   let lastAnswerLanguage = "en"; // used by the "Listen" button
+  let userLat = null;
+  let userLng = null;
 
   // -- language list -------------------------------------------------------
 
@@ -172,12 +175,16 @@ const API_BASE = "http://127.0.0.1:8000";
     try {
       let response;
       const language = els.langSelect.value;
+      const modePersona = els.personaSelect.value;
 
       if (mode === "speak") {
         const form = new FormData();
         form.append("audio", recordedBlob, "recording.webm");
         form.append("language", language);
+        form.append("mode", modePersona);
         if (sessionId) form.append("session_id", sessionId);
+        if (userLat !== null) form.append("lat", userLat);
+        if (userLng !== null) form.append("lng", userLng);
         response = await fetch(`${API_BASE}/api/ask/audio`, { method: "POST", body: form });
       } else {
         response = await fetch(`${API_BASE}/api/ask/text`, {
@@ -187,6 +194,9 @@ const API_BASE = "http://127.0.0.1:8000";
             text: els.textInput.value.trim(),
             language,
             session_id: sessionId,
+            mode: modePersona,
+            lat: userLat,
+            lng: userLng,
           }),
         });
       }
@@ -233,7 +243,7 @@ const API_BASE = "http://127.0.0.1:8000";
     // Emergency banner
     els.emergencyBanner.classList.toggle("hidden", !data.is_emergency);
     if (data.is_emergency && data.function_note) {
-      els.emergencyText.textContent = data.function_note;
+      els.emergencyText.innerHTML = data.function_note;
     }
 
     // Triage / assessment ticket (hidden entirely if the fallback path was used,
@@ -265,7 +275,7 @@ const API_BASE = "http://127.0.0.1:8000";
 
       if (data.function_note && !data.is_emergency) {
         els.functionNote.classList.remove("hidden");
-        els.functionNote.textContent = data.function_note;
+        els.functionNote.innerHTML = data.function_note;
       } else {
         els.functionNote.classList.add("hidden");
       }
@@ -352,6 +362,18 @@ const API_BASE = "http://127.0.0.1:8000";
 
   // -- init ------------------------------------------------------------------
 
+  function initLocation() {
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          userLat = pos.coords.latitude;
+          userLng = pos.coords.longitude;
+        },
+        (err) => console.warn("Location permission denied or failed.", err)
+      );
+    }
+  }
+
   function initTimestamp() {
     const now = new Date();
     els.slipTimestamp.textContent = now.toLocaleString(undefined, {
@@ -361,5 +383,6 @@ const API_BASE = "http://127.0.0.1:8000";
 
   loadLanguages();
   initTimestamp();
+  initLocation();
   updateSubmitState();
 })();
